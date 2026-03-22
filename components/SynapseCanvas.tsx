@@ -25,6 +25,12 @@ interface Branch {
   agentPersonality: string;
 }
 
+interface ChatMessage {
+  id: string;
+  role: 'ai' | 'user';
+  text: string;
+}
+
 interface SynapseCanvasProps {
   idea: string;
   branches: Branch[];
@@ -45,12 +51,78 @@ function SynapseCanvasInner({ idea, branches, isLoading }: SynapseCanvasProps) {
   const hasSpawnedRef = useRef(false);
   const reactFlowInstance = useReactFlow();
 
-  // Create center node on mount — locked in place
+  // Orchestrator chat state
+  const [centerMessages, setCenterMessages] = useState<ChatMessage[]>([
+    { id: '1', role: 'ai', text: `Let's work on "${idea}". I'm breaking this into branches for you...` },
+  ]);
+  const [floatingMessages, setFloatingMessages] = useState<ChatMessage[]>([
+    { id: 'float-1', role: 'ai', text: `Breaking "${idea}" into branches...` },
+  ]);
+  const [isCenterChatLoading, setIsCenterChatLoading] = useState(false);
+  const [centerExpanded, setCenterExpanded] = useState(false);
+
+  // Update floating message when branches arrive
+  useEffect(() => {
+    if (branches.length > 0) {
+      const branchNames = branches.map(b => b.label).join(', ');
+      const msg: ChatMessage = {
+        id: `float-${Date.now()}`,
+        role: 'ai',
+        text: `I've set up ${branches.length} agents: ${branchNames}. Click any branch to start exploring.`,
+      };
+      setFloatingMessages([msg]);
+      setCenterMessages(prev => [...prev, msg]);
+    }
+  }, [branches]);
+
+  // Handle orchestrator chat messages
+  const handleCenterSendMessage = useCallback(async (text: string) => {
+    const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', text };
+    setCenterMessages(prev => [...prev, userMsg]);
+    setIsCenterChatLoading(true);
+
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [...centerMessages, userMsg],
+          agentPersonality: 'You are the central orchestrator. Think holistically about the project. Be conversational and concise (2-3 sentences). Ask follow-up questions. When the user gives new context, acknowledge it and suggest which branches might be affected.',
+          nodeLabel: idea,
+          rootIdea: idea,
+        }),
+      });
+
+      if (res.ok) {
+        const { reply } = await res.json();
+        const aiMsg: ChatMessage = { id: (Date.now() + 1).toString(), role: 'ai', text: reply };
+        setCenterMessages(prev => [...prev, aiMsg]);
+        // Also show as floating when collapsed
+        setFloatingMessages([aiMsg]);
+      }
+    } catch (err) {
+      console.error('Center chat error:', err);
+    } finally {
+      setIsCenterChatLoading(false);
+    }
+  }, [centerMessages, idea]);
+
+  // Handle center node expand
+  const handleCenterExpand = useCallback(() => {
+    reactFlowInstance.setCenter(0, 0, { duration: 400, zoom: 1 });
+    setTimeout(() => setCenterExpanded(true), 100);
+  }, [reactFlowInstance]);
+
+  const handleCenterCollapse = useCallback(() => {
+    setCenterExpanded(false);
+  }, []);
+
+  // Create center node on mount
   useEffect(() => {
     const centerNode: Node = {
       id: 'center',
       type: 'center',
-      position: { x: 0, y: 0 },
+      position: { x: -95, y: -29 }, // Offset so pill is centered at origin
       draggable: false,
       selectable: false,
       deletable: false,
@@ -58,11 +130,23 @@ function SynapseCanvasInner({ idea, branches, isLoading }: SynapseCanvasProps) {
       data: {
         label: idea,
         isLoading,
+        isExpanded: centerExpanded,
+        onExpand: handleCenterExpand,
+        onCollapse: handleCenterCollapse,
+        floatingMessages,
+        chatMessages: centerMessages,
+        onSendMessage: handleCenterSendMessage,
+        isChatLoading: isCenterChatLoading,
       },
       style: { cursor: 'default' },
     };
-    setNodes([centerNode]);
-  }, [idea, setNodes, isLoading]);
+
+    setNodes(prev => {
+      // Preserve branch nodes, update center
+      const branchNodes = prev.filter(n => n.id !== 'center');
+      return [centerNode, ...branchNodes];
+    });
+  }, [idea, isLoading, centerExpanded, floatingMessages, centerMessages, isCenterChatLoading, setNodes, handleCenterExpand, handleCenterCollapse, handleCenterSendMessage]);
 
   // Spawn branch nodes when branches arrive
   useEffect(() => {
@@ -75,8 +159,8 @@ function SynapseCanvasInner({ idea, branches, isLoading }: SynapseCanvasProps) {
 
     branches.forEach((branch, index) => {
       const angle = (index / total) * 2 * Math.PI - Math.PI / 2;
-      const x = Math.cos(angle) * 260;
-      const y = Math.sin(angle) * 200;
+      const x = Math.cos(angle) * 400;
+      const y = Math.sin(angle) * 320;
 
       newNodes.push({
         id: branch.id,
@@ -90,9 +174,11 @@ function SynapseCanvasInner({ idea, branches, isLoading }: SynapseCanvasProps) {
           rootIdea: idea,
           isExpanded: false,
           isDimmed: false,
-          onExpand: () => handleNodeExpand(branch.id, x, y),
+          onExpand: () => handleBranchExpand(branch.id, x, y),
           onCollapse: () => setExpandedNodeId(null),
-          spawnDelay: index * 80,
+          spawnDelay: index * 100,
+          agentThinking: undefined,
+          agentStatus: 'idle' as const,
         },
       });
 
@@ -105,28 +191,29 @@ function SynapseCanvasInner({ idea, branches, isLoading }: SynapseCanvasProps) {
       });
     });
 
+    // Wait for all spawn animations + render before fitting
+    const maxSpawnDelay = (total - 1) * 100;
     setTimeout(() => {
-      setNodes((prev) => [...prev, ...newNodes]);
+      setNodes(prev => [...prev, ...newNodes]);
       setEdges(newEdges);
-
       setTimeout(() => {
-        reactFlowInstance.fitView({ padding: 0.25, duration: 500 });
-      }, 400);
-    }, 100);
+        reactFlowInstance.fitView({ padding: 0.25, duration: 700, minZoom: 0.4, maxZoom: 0.85 });
+      }, maxSpawnDelay + 300);
+    }, 150);
   }, [branches, idea, setNodes, setEdges, reactFlowInstance]);
 
-  // Handle node expand: center then expand
-  const handleNodeExpand = useCallback((nodeId: string, x: number, y: number) => {
+  // Handle branch node expand
+  const handleBranchExpand = useCallback((nodeId: string, x: number, y: number) => {
+    // Collapse center if expanded
+    setCenterExpanded(false);
     reactFlowInstance.setCenter(x, y, { duration: 400, zoom: 1 });
-    setTimeout(() => {
-      setExpandedNodeId(nodeId);
-    }, 100);
+    setTimeout(() => setExpandedNodeId(nodeId), 150);
   }, [reactFlowInstance]);
 
   // Update branch node data when expandedNodeId changes
   useEffect(() => {
-    setNodes((nds) =>
-      nds.map((node) => {
+    setNodes(nds =>
+      nds.map(node => {
         if (node.type !== 'branch') return node;
         const nodeX = node.position.x;
         const nodeY = node.position.y;
@@ -136,24 +223,23 @@ function SynapseCanvasInner({ idea, branches, isLoading }: SynapseCanvasProps) {
             ...node.data,
             isExpanded: expandedNodeId === node.id,
             isDimmed: !!expandedNodeId && expandedNodeId !== node.id,
-            onExpand: () => handleNodeExpand(node.id, nodeX, nodeY),
+            onExpand: () => handleBranchExpand(node.id, nodeX, nodeY),
             onCollapse: () => setExpandedNodeId(null),
           },
         };
       })
     );
-  }, [expandedNodeId, setNodes, handleNodeExpand]);
+  }, [expandedNodeId, setNodes, handleBranchExpand]);
 
-  // Click canvas background to collapse
+  // Click background to collapse everything
   const onPaneClick = useCallback(() => {
-    if (expandedNodeId) {
-      setExpandedNodeId(null);
-    }
-  }, [expandedNodeId]);
+    if (expandedNodeId) setExpandedNodeId(null);
+    if (centerExpanded) setCenterExpanded(false);
+  }, [expandedNodeId, centerExpanded]);
 
   return (
     <div className="w-full h-full">
-      {/* Floating navbar on canvas */}
+      {/* Floating navbar */}
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10">
         <div className="flex items-center gap-3 bg-white border border-[#e8e6e0] rounded-full px-5 py-2.5 shadow-[0_2px_10px_rgba(0,0,0,0.04)]">
           <div className="w-7 h-7 bg-[#1a1a2e] rounded-lg flex items-center justify-center">
@@ -165,9 +251,7 @@ function SynapseCanvasInner({ idea, branches, isLoading }: SynapseCanvasProps) {
           </div>
           <span className="text-[15px] font-medium text-[#1a1a2e]">Synapse</span>
           <div className="w-px h-4 bg-[#e8e6e0] mx-1" />
-          <button className="text-[13px] text-[#888780] hover:text-[#1a1a2e] transition-colors">
-            Export to Notion ↗
-          </button>
+          <span className="text-[13px] text-[#888780] truncate max-w-[200px]">{idea}</span>
         </div>
       </div>
 
@@ -178,17 +262,13 @@ function SynapseCanvasInner({ idea, branches, isLoading }: SynapseCanvasProps) {
         onEdgesChange={onEdgesChange}
         onPaneClick={onPaneClick}
         nodeTypes={nodeTypes}
-        fitView
-        fitViewOptions={{ padding: 0.3 }}
-        nodesDraggable={!expandedNodeId}
+        defaultViewport={{ x: window.innerWidth / 2 - 95, y: window.innerHeight / 2 - 29, zoom: 0.75 }}
+        nodesDraggable={!expandedNodeId && !centerExpanded}
         nodesConnectable={false}
         elementsSelectable={false}
         minZoom={0.3}
         maxZoom={2}
-        defaultEdgeOptions={{
-          type: 'straight',
-          style: EDGE_STYLE,
-        }}
+        defaultEdgeOptions={{ type: 'straight', style: EDGE_STYLE }}
         proOptions={{ hideAttribution: true }}
       >
         <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="rgba(200,196,188,0.4)" />

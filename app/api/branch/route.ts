@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
       : `The user wants to brainstorm about: "${idea}". Generate the main branches/aspects to explore.`;
 
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-flash-preview',
       generationConfig: {
         temperature: 0.9,
         responseMimeType: 'application/json',

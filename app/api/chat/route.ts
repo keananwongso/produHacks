@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
 The user is brainstorming: "${rootIdea}". You are the "${nodeLabel}" expert. Help them explore this specific aspect. Be concise (2-3 sentences max), practical, and creative. Ask follow-up questions to deepen the conversation.`;
 
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-flash-preview',
       generationConfig: {
         temperature: 0.7,
       },

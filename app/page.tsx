@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { ArrowUp, Plus, FileText, Settings, LogOut } from 'lucide-react';
+import { ArrowUp } from 'lucide-react';
 import dynamic from 'next/dynamic';
 
 const SynapseCanvas = dynamic(() => import('@/components/SynapseCanvas'), { ssr: false });
@@ -21,12 +21,6 @@ const SUGGESTIONS = [
   { emoji: '🚀', text: 'Startup launch', bg: '#e2dced', border: '#d1c9e0', hoverBorder: '#a893c9' },
   { emoji: '📝', text: 'Thesis writing', bg: '#f0e0d0', border: '#e6d2be', hoverBorder: '#d4a87a' },
   { emoji: '🎵', text: 'Music festival', bg: '#d5e5e8', border: '#c0d8dc', hoverBorder: '#7fbbc4' },
-];
-
-const DUMMY_SESSIONS = [
-  { id: '1', title: 'Coffee shop branding' },
-  { id: '2', title: 'Hackathon project ideas' },
-  { id: '3', title: 'Marketing strategy Q2' },
 ];
 
 export default function SynapsePage() {
@@ -80,48 +74,10 @@ export default function SynapsePage() {
     inputRef.current?.focus();
   };
 
-  // ─── SIDEBAR ───
-  const sidebar = (
-    <div className="fixed top-0 left-0 w-16 h-screen bg-[#1a1a2e] flex flex-col items-center py-4 z-50">
-      <div className="w-9 h-9 rounded-lg bg-white/10 flex items-center justify-center mb-1">
-        <svg width="16" height="16" viewBox="0 0 14 14" fill="none">
-          <circle cx="4" cy="7" r="2" fill="white" />
-          <circle cx="10" cy="7" r="2" fill="white" />
-          <line x1="6" y1="7" x2="8" y2="7" stroke="white" strokeWidth="1.5" />
-        </svg>
-      </div>
-      <div className="w-8 h-px bg-white/10 my-3" />
-      <button className="w-9 h-9 rounded-lg flex items-center justify-center text-white/60 hover:text-white hover:bg-white/[0.08] transition-all mb-3">
-        <Plus size={18} />
-      </button>
-      <div className="flex flex-col gap-1 w-full px-2">
-        {DUMMY_SESSIONS.map((s) => (
-          <button
-            key={s.id}
-            className="flex items-center gap-1.5 px-1.5 py-2 rounded-md text-white/50 hover:text-white/80 hover:bg-white/[0.08] transition-all w-full"
-            title={s.title}
-          >
-            <FileText size={14} className="shrink-0" />
-            <span className="text-[10px] truncate">{s.title}</span>
-          </button>
-        ))}
-      </div>
-      <div className="flex-grow" />
-      <button className="w-9 h-9 rounded-lg flex items-center justify-center text-white/60 hover:text-white hover:bg-white/[0.08] transition-all mb-1">
-        <Settings size={18} />
-      </button>
-      <button className="w-9 h-9 rounded-lg flex items-center justify-center text-white/60 hover:text-white hover:bg-white/[0.08] transition-all">
-        <LogOut size={18} />
-      </button>
-    </div>
-  );
-
   // ─── HOMEPAGE ───
   if (phase === 'homepage' || phase === 'collapsing') {
     return (
-      <div className="h-screen w-screen flex">
-        {sidebar}
-        <div className="flex-1 ml-16 dot-grid flex flex-col items-center justify-center relative overflow-hidden">
+      <div className="h-screen w-screen dot-grid flex flex-col items-center justify-center relative overflow-hidden">
           {/* Radial glow */}
           <div
             className="absolute inset-0 pointer-events-none entrance-glow"
@@ -227,18 +183,14 @@ export default function SynapsePage() {
               </p>
             </div>
           </div>
-        </div>
       </div>
     );
   }
 
   // ─── CANVAS ───
   return (
-    <div className="h-screen w-screen flex">
-      {sidebar}
-      <div className="flex-1 ml-16 h-screen">
-        <SynapseCanvas idea={idea} branches={branches} isLoading={isLoading} />
-      </div>
+    <div className="h-screen w-screen">
+      <SynapseCanvas idea={idea} branches={branches} isLoading={isLoading} />
     </div>
   );
 }
