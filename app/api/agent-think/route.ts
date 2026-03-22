@@ -15,74 +15,99 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    const prompt = `You are an AI agent working on the "${branchLabel}" aspect of "${rootIdea}".
+    // Run doc and mockup in parallel — cuts time roughly in half
+    const docPromise = model.generateContent(`You are an AI agent on the "${branchLabel}" aspect of "${rootIdea}".
+Personality: ${agentPersonality}
+Description: ${branchDescription}
 
-Your personality: ${agentPersonality}
-Branch description: ${branchDescription}
-
-You are autonomously analyzing this topic. Return your work as JSON with this EXACT structure:
-
+Return JSON with this EXACT structure:
 {
-  "thinkingSteps": [
-    "Analyzing the key aspects of ${branchLabel}...",
-    "Researching best practices...",
-    "Identifying key considerations..."
-  ],
-  "deliverables": [
-    {
-      "title": "Short title (2-4 words)",
-      "summary": "One sentence summary of this deliverable",
-      "content": "Detailed content — 2-3 paragraphs with actionable insights. Use **bold** for emphasis and newlines between paragraphs.",
-      "type": "doc"
-    },
-    {
-      "title": "Short title (2-4 words)",
-      "summary": "One sentence summary of what this mini-site shows",
-      "html": "<!DOCTYPE html><html>...</html>",
-      "type": "mockup"
-    }
-  ]
+  "thinkingSteps": ["short step 1", "short step 2", "short step 3"],
+  "title": "2-4 word title",
+  "summary": "One sentence summary",
+  "content": "2-3 paragraphs with actionable insights. Use **bold** for key terms. Separate paragraphs with \\n\\n."
 }
 
 Rules:
-- thinkingSteps: exactly 3 short status messages (under 8 words each) showing your thought process
-- deliverables: exactly 2 outputs — first a "doc", then a "mockup"
-- doc: content should be 150-250 words with specific, actionable information about "${branchLabel}" for "${rootIdea}"
-- mockup: a complete, self-contained HTML page. Rules for the HTML:
-  * Must be valid, complete HTML (<!DOCTYPE html> through </html>)
-  * All CSS must be inline in a <style> tag — no external stylesheets or CDNs
-  * No external images or fonts — use system fonts and CSS shapes/gradients only
-  * Can use vanilla JS for interactivity (charts, toggles, counters, etc.)
-  * Should look polished and modern — clean typography, good use of color
-  * Content must be specific to "${branchLabel}" within the context of "${rootIdea}"
-  * Use a color palette that feels appropriate for the topic
-  * Keep it under 3000 characters of HTML
-  * Good examples: a checklist tracker, a data visualization, a timeline, a comparison table, a mini dashboard`;
+- thinkingSteps: exactly 3 short messages under 8 words each
+- content: 150-250 words, specific to "${branchLabel}" for "${rootIdea}"`);
 
-    const result = await model.generateContent(prompt);
-    const text = result.response.text();
-    const data = JSON.parse(text);
+    const mockupPromise = model.generateContent(`You are a senior product designer building a focused, data-driven mini tool for "${branchLabel}" within the context of "${rootIdea}".
 
-    if (!data.thinkingSteps || !data.deliverables) {
-      throw new Error('Invalid response structure');
-    }
+Return JSON with this EXACT structure:
+{ "html": "<!DOCTYPE html>...</html>" }
 
-    return NextResponse.json(data);
+DESIGN RULES — follow these strictly, they are what separates great from generic:
+
+Typography:
+- Use system-ui or -apple-system, NOT Google Fonts
+- One strong display size (28-36px) for the main number/stat/heading
+- Body text at 13-14px, line-height 1.5
+- Labels at 11px uppercase tracking-widest, color: #888
+- No more than 3 font sizes total
+
+Color:
+- Pick ONE accent color appropriate to the topic. Use it sparingly (1-2 elements max)
+- Background: #f8f8f6 or #0f0f0f (light or dark theme — pick one, commit to it)
+- Text: high contrast — #111 on light, #f0f0f0 on dark
+- No gradients on backgrounds. No rainbow palettes. No glassmorphism.
+- Borders: 1px solid rgba(0,0,0,0.08) or rgba(255,255,255,0.08)
+
+Layout:
+- Dense, information-rich. Not spacious and airy.
+- Use a grid or flex layout with real content, not placeholder lorem ipsum
+- Cards with subtle borders, NOT drop shadows everywhere
+- No border-radius above 8px except for pill badges (999px)
+
+Interaction (pick ONE that fits the content):
+- A filterable/sortable list
+- A progress tracker with real milestones
+- A metric dashboard with 3-4 real KPIs and a simple bar or sparkline (pure CSS or canvas)
+- A timeline of events/phases
+- A comparison matrix or scoring table
+- A checklist with completion state
+
+Content must be REAL and SPECIFIC to "${branchLabel}" for "${rootIdea}" — actual numbers, names, phases, metrics. Not "Item 1", "Metric A".
+
+Technical:
+- Complete HTML from <!DOCTYPE html> to </html>
+- All CSS in a <style> tag
+- Vanilla JS only, no libraries
+- No external resources whatsoever
+- Under 4000 characters total`);
+
+    const [docResult, mockupResult] = await Promise.all([docPromise, mockupPromise]);
+
+    const docData = JSON.parse(docResult.response.text());
+    const mockupData = JSON.parse(mockupResult.response.text());
+
+    return NextResponse.json({
+      thinkingSteps: docData.thinkingSteps || [`Analyzing ${branchLabel}...`, 'Gathering insights...', 'Done.'],
+      deliverables: [
+        {
+          title: docData.title || branchLabel,
+          summary: docData.summary || '',
+          content: docData.content || '',
+          type: 'doc',
+        },
+        {
+          title: `${branchLabel} Dashboard`,
+          summary: `An interactive overview of ${branchLabel}.`,
+          html: mockupData.html || '',
+          type: 'mockup',
+        },
+      ],
+    });
   } catch (error: any) {
     console.error('Agent think error:', error);
 
-    // Fallback response
     return NextResponse.json({
-      thinkingSteps: [
-        `Analyzing ${req.body ? 'topic' : 'request'}...`,
-        'Gathering insights...',
-        'Preparing findings...',
-      ],
+      thinkingSteps: ['Analyzing...', 'Gathering insights...', 'Preparing findings...'],
       deliverables: [
         {
-          title: 'Initial Analysis',
-          summary: 'A preliminary overview of key considerations.',
-          content: 'Analysis is being prepared. Please check back shortly.',
+          title: 'Analysis',
+          summary: 'A preliminary overview.',
+          content: 'Analysis is being prepared.',
           type: 'doc',
         },
       ],

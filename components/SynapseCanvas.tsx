@@ -376,11 +376,11 @@ function SynapseCanvasInner({ idea, branches, isLoading }: SynapseCanvasProps) {
     setAgentStates(initialStates);
     setAgentMessages(initialMessages);
 
-    // Stagger agent starts
+    // Stagger agent starts for visual effect
     branches.forEach((branch, index) => {
       setTimeout(() => {
         triggerAgent(branch, index);
-      }, index * 800 + 1500); // stagger + wait for spawn animation
+      }, index * 800 + 1500);
     });
   }, [branches]);
 
@@ -392,57 +392,43 @@ function SynapseCanvasInner({ idea, branches, isLoading }: SynapseCanvasProps) {
       'Preparing findings...',
     ];
 
-    // Simulate thinking steps with delays
+    // Fire API immediately in background while showing fake steps in parallel
+    const apiPromise = fetch('/api/agent-think', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        branchLabel: branch.label,
+        branchDescription: branch.description,
+        agentPersonality: branch.agentPersonality,
+        rootIdea: idea,
+      }),
+    });
+
+    // Show fake thinking steps while API runs
     for (let i = 0; i < thinkingSteps.length; i++) {
       await new Promise(r => setTimeout(r, 1200));
-
-      const step = thinkingSteps[i];
-
-      // Update agent thinking status
       setAgentStates(prev => {
         const next = new Map(prev);
         const state = next.get(branch.id);
-        if (state) {
-          next.set(branch.id, { ...state, currentThinking: step });
-        }
+        if (state) next.set(branch.id, { ...state, currentThinking: thinkingSteps[i] });
         return next;
       });
-
-      // (Thinking now shown above each agent's node — not above center)
-
     }
 
-    // Call the API
     try {
-      const res = await fetch('/api/agent-think', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          branchLabel: branch.label,
-          branchDescription: branch.description,
-          agentPersonality: branch.agentPersonality,
-          rootIdea: idea,
-        }),
-      });
-
+      const res = await apiPromise;
       if (!res.ok) throw new Error('Agent think failed');
       const data = await res.json();
 
-      // Show real thinking steps from API
+      // Briefly show real thinking steps
       for (const step of data.thinkingSteps) {
         setAgentStates(prev => {
           const next = new Map(prev);
           const state = next.get(branch.id);
-          if (state) {
-            next.set(branch.id, { ...state, currentThinking: step });
-          }
+          if (state) next.set(branch.id, { ...state, currentThinking: step });
           return next;
         });
-
-        // (Thinking steps are rendered above each BranchNode directly)
-
-
-        await new Promise(r => setTimeout(r, 1000));
+        await new Promise(r => setTimeout(r, 400));
       }
 
       // Mark agent as done
@@ -1203,44 +1189,9 @@ function SynapseCanvasInner({ idea, branches, isLoading }: SynapseCanvasProps) {
     );
   }, [expandedNodeIds, expandedNodeOrder, agentStates, openPanelBranchId, agentMessages, agentChatLoading, setNodes, setEdges, handleAgentClick, handleDeliverableExpand, handleAgentSendMessage, spawnNoteFromNode]);
 
-  // Double-click canvas pane to add a note
-  const lastPaneClickRef = useRef<number>(0);
-  const lastPaneClickPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-
-  const onPaneClickWithDoubleDetect = useCallback((event: React.MouseEvent) => {
-    // Single-click: collapse center chat if open
+  const onPaneClick = useCallback(() => {
     if (centerExpanded) setCenterExpanded(false);
-
-    const now = Date.now();
-    const timeDiff = now - lastPaneClickRef.current;
-    const posDiff = Math.abs(event.clientX - lastPaneClickPosRef.current.x) + Math.abs(event.clientY - lastPaneClickPosRef.current.y);
-
-    if (timeDiff < 400 && posDiff < 10) {
-      // Double-click detected — add note
-      const position = reactFlowInstance.screenToFlowPosition({
-        x: event.clientX,
-        y: event.clientY,
-      });
-
-      const noteId = `note-${Date.now()}`;
-      const newNote: Node = {
-        id: noteId,
-        type: 'note',
-        position,
-        data: {
-          text: '',
-          onTextChange: handleNoteTextChange,
-          nodeId: noteId,
-        },
-      };
-
-      setNodes(prev => [...prev, newNote]);
-      lastPaneClickRef.current = 0;
-    } else {
-      lastPaneClickRef.current = now;
-      lastPaneClickPosRef.current = { x: event.clientX, y: event.clientY };
-    }
-  }, [centerExpanded, responseCard, handleDismissResponse, reactFlowInstance, setNodes, handleNoteTextChange]);
+  }, [centerExpanded]);
 
   return (
     <div className="w-full h-full">
@@ -1250,7 +1201,7 @@ function SynapseCanvasInner({ idea, branches, isLoading }: SynapseCanvasProps) {
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
-        onPaneClick={onPaneClickWithDoubleDetect}
+        onPaneClick={onPaneClick}
         onNodeClick={(_, node) => {
           if (node.type === 'branch') {
             handleAgentClick(node.id);
