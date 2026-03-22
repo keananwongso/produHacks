@@ -14,12 +14,72 @@ interface NodeProps {
   zoom?: number;
 }
 
+function ChecklistContent({ metadata }: { metadata: Record<string, any> }) {
+  const items = metadata?.items || [];
+  return (
+    <div className="space-y-1.5 mt-1">
+      {items.slice(0, 6).map((item: any, i: number) => (
+        <div key={i} className="flex items-start gap-2 text-xs">
+          <div className="w-3.5 h-3.5 mt-0.5 rounded border border-[#B8A8D4]/60 flex-shrink-0" />
+          <div>
+            <span className="text-[#1A1A1A]">{item.text}</span>
+            {item.due && (
+              <span className="ml-1 text-[10px] text-[#1A1A1A]/40">{item.due}</span>
+            )}
+          </div>
+        </div>
+      ))}
+      {items.length > 6 && (
+        <div className="text-[10px] text-[#1A1A1A]/40">+{items.length - 6} more</div>
+      )}
+    </div>
+  );
+}
+
+function DocumentContent({ metadata }: { metadata: Record<string, any> }) {
+  const markdown = metadata?.markdown || '';
+  // Simple markdown rendering — bold, headers, bullets
+  const lines = markdown.split('\n').slice(0, 8);
+  return (
+    <div className="space-y-1 mt-1 text-xs text-[#1A1A1A]/80 leading-relaxed">
+      {lines.map((line: string, i: number) => {
+        if (line.startsWith('# ')) return <div key={i} className="font-semibold text-sm">{line.slice(2)}</div>;
+        if (line.startsWith('## ')) return <div key={i} className="font-semibold text-xs">{line.slice(3)}</div>;
+        if (line.startsWith('- ')) return <div key={i} className="pl-2">• {line.slice(2)}</div>;
+        if (line.startsWith('**') && line.endsWith('**')) return <div key={i} className="font-semibold">{line.slice(2, -2)}</div>;
+        if (line.trim() === '') return null;
+        return <div key={i}>{line}</div>;
+      })}
+      {markdown.split('\n').length > 8 && (
+        <div className="text-[10px] text-[#1A1A1A]/40">... click to expand</div>
+      )}
+    </div>
+  );
+}
+
+function MockupContent({ metadata }: { metadata: Record<string, any> }) {
+  const html = metadata?.html || '';
+  return (
+    <div className="mt-1 rounded-lg overflow-hidden border border-[#D4A857]/20">
+      <iframe
+        srcDoc={html}
+        sandbox="allow-same-origin"
+        className="w-full pointer-events-none"
+        style={{ height: '180px', border: 'none' }}
+        title="Mockup preview"
+      />
+    </div>
+  );
+}
+
 export function Node({ node, onDrag, onDoubleClick, onClick, zoom = 1 }: NodeProps) {
   const [isDraggingLocal, setIsDraggingLocal] = useState(false);
   const velocityRef = useRef({ vx: 0, vy: 0 });
   const lastPosRef = useRef({ x: node.x, y: node.y });
 
   const styles = NODE_STYLES[node.nodeType] || NODE_STYLES.thought;
+
+  const isRichNode = node.nodeType === 'checklist' || node.nodeType === 'document' || node.nodeType === 'mockup';
 
   // Drag gesture with throw velocity
   const bind = useDrag(
@@ -67,7 +127,8 @@ export function Node({ node, onDrag, onDoubleClick, onClick, zoom = 1 }: NodePro
     >
       <div
         className={cn(
-          'px-4 py-3 rounded-xl border max-w-[240px]',
+          'px-4 py-3 rounded-xl border',
+          isRichNode ? 'max-w-[320px]' : 'max-w-[240px]',
           'transition-all duration-200',
           'node-spawn',
           styles.bg,
@@ -78,9 +139,15 @@ export function Node({ node, onDrag, onDoubleClick, onClick, zoom = 1 }: NodePro
           isDraggingLocal && 'shadow-[0_8px_30px_rgba(0,0,0,0.15)]'
         )}
       >
-        <p className={cn('text-sm leading-relaxed', styles.text)}>
+        {/* Title */}
+        <p className={cn('text-sm leading-relaxed font-medium', styles.text)}>
           {node.text}
         </p>
+
+        {/* Rich content by type */}
+        {node.nodeType === 'checklist' && <ChecklistContent metadata={node.metadata} />}
+        {node.nodeType === 'document' && <DocumentContent metadata={node.metadata} />}
+        {node.nodeType === 'mockup' && <MockupContent metadata={node.metadata} />}
 
         {/* Node type indicator */}
         <div className="mt-1 flex items-center gap-2 text-[10px]">

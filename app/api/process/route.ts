@@ -25,7 +25,7 @@ export async function POST(req: Request) {
       },
     });
 
-    const prompt = `You are an intelligent router for a spatial brainstorming canvas.
+    const prompt = `You are an intelligent router for a spatial brainstorming canvas with multiple AI agents.
 
 User input: "${input}"
 
@@ -33,18 +33,19 @@ Current canvas context:
 - Number of existing nodes: ${context?.nodeCount || 0}
 - Existing topics: ${context?.topics?.join(', ') || 'none'}
 
-Analyze the user's intent and return the appropriate action with parameters.
+Analyze the user's intent and route to the appropriate AI agent.
 
 Available actions:
-1. "brainstorm" - Generate creative ideas/thoughts (when user wants to explore, ideate, or brainstorm)
-2. "research" - Find facts, insights, or information (when user wants to learn or understand)
-3. "analyze" - Understand relationships between existing nodes (when user wants to organize or see connections)
-4. "note" - Simple note/thought to add to canvas (when user is just capturing an idea)
-5. "organize" - Cluster and label existing nodes (when user wants to tidy up the canvas)
+1. "brainstorm" - Generate creative ideas (user wants to explore, ideate, brainstorm)
+2. "research" - Find facts, data, insights (user wants to learn or understand something)
+3. "plan" - Create a timeline, task list, or project plan (user wants structure, steps, logistics)
+4. "write" - Draft a document, email, or message (user wants written content or outreach)
+5. "mockup" - Create a UI mockup, website design, or slide layout (user wants visual design)
+6. "note" - Simple note to add to canvas (user is just capturing a quick thought)
 
 Return JSON with this EXACT structure:
 {
-  "action": "brainstorm" | "research" | "analyze" | "note" | "organize",
+  "action": "brainstorm" | "research" | "plan" | "write" | "mockup" | "note",
   "parameters": {
     "topic": "main topic extracted from input",
     "count": 3-5,
@@ -55,8 +56,11 @@ Return JSON with this EXACT structure:
 
 Rules:
 - Default to "brainstorm" if intent is unclear
+- Use "plan" for logistics, timelines, schedules, checklists, project management
+- Use "write" for emails, outreach, drafts, documents, messaging
+- Use "mockup" for UI design, wireframes, slides, presentations, website layouts
 - Extract the core topic/theme from the input
-- count should be 3-5 for brainstorm/research, 1 for note
+- count should be 3-5 for brainstorm/research, 1 for note/write/mockup/plan
 - summary should be actionable and clear`;
 
     const result = await model.generateContent(prompt);

@@ -122,65 +122,48 @@ export default function DriftPage() {
         setProcessingStatus(summary);
 
         // Step 2: Execute the appropriate action
-        if (action === 'brainstorm') {
-          console.log('🧠 Brainstorming:', parameters.topic);
-          setProcessingStatus('Dispatching brainstorm agent...');
-
-          const brainstormResponse = await fetch('/api/ai/brainstorm', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              topic: parameters.topic,
-              count: parameters.count || 3,
-              focus: parameters.focus,
-            }),
-          });
-
-          if (!brainstormResponse.ok) throw new Error('Brainstorm failed');
-
-          const { taskId } = await brainstormResponse.json();
-          console.log('📝 Task created:', taskId);
-          setProcessingStatus('Waiting for agent results...');
-
-          // Results will arrive via Realtime subscription (handled by useAgentResults hook)
-        } else if (action === 'note') {
-          // Simple note - just add as a thought node
+        if (action === 'note') {
+          // Simple note — no agent needed
           spawnNodesFromChatbox([
-            {
-              text: parameters.topic,
-              isAI: false,
-              nodeType: 'thought',
-              metadata: {},
-            },
+            { text: parameters.topic, isAI: false, nodeType: 'thought', metadata: {} },
           ]);
-
-          // Clear processing state immediately for notes (no agent needed)
           setIsProcessing(false);
           setProcessingStatus('');
-        } else if (action === 'research') {
-          console.log('🔍 Researching:', parameters.topic);
-          setProcessingStatus('Dispatching research agent...');
+        } else {
+          // All agent-backed actions follow the same pattern
+          const agentRoutes: Record<string, { endpoint: string; label: string; icon: string }> = {
+            brainstorm: { endpoint: '/api/ai/brainstorm', label: 'brainstorm', icon: '🧠' },
+            research:   { endpoint: '/api/ai/research',   label: 'research',   icon: '🔍' },
+            plan:       { endpoint: '/api/ai/plan',       label: 'planner',    icon: '📋' },
+            write:      { endpoint: '/api/ai/write',      label: 'writer',     icon: '✍️' },
+            mockup:     { endpoint: '/api/ai/mockup',     label: 'mockup',     icon: '🎨' },
+          };
 
-          const researchResponse = await fetch('/api/ai/research', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              topic: parameters.topic,
-              count: parameters.count || 3,
-              focus: parameters.focus,
-            }),
-          });
+          const route = agentRoutes[action];
+          if (route) {
+            console.log(`${route.icon} ${route.label}:`, parameters.topic);
+            setProcessingStatus(`Dispatching ${route.label} agent...`);
 
-          if (!researchResponse.ok) throw new Error('Research failed');
+            const response = await fetch(route.endpoint, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                topic: parameters.topic,
+                count: parameters.count || 3,
+                focus: parameters.focus,
+              }),
+            });
 
-          const { taskId } = await researchResponse.json();
-          console.log('📝 Task created:', taskId);
-          setProcessingStatus('Waiting for agent results...');
+            if (!response.ok) throw new Error(`${route.label} agent failed`);
 
-          // Results will arrive via Realtime subscription (handled by useAgentResults hook)
-        } else if (action === 'analyze') {
-          // TODO: Implement analyze action (cluster existing nodes)
-          console.log('🔬 Analyze not implemented yet');
+            const { taskId } = await response.json();
+            console.log('📝 Task created:', taskId);
+            setProcessingStatus('Waiting for agent results...');
+          } else {
+            console.log('⚠️ Unknown action:', action);
+            setIsProcessing(false);
+            setProcessingStatus('');
+          }
         }
 
         console.log('✅ Task dispatched');

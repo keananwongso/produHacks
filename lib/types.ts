@@ -9,7 +9,7 @@ export interface Node {
   vy: number; // velocity y
   isAI: boolean;
   isDragging: boolean;
-  nodeType: 'thought' | 'ai_idea' | 'research' | 'document' | 'mockup';
+  nodeType: 'thought' | 'ai_idea' | 'research' | 'document' | 'mockup' | 'checklist' | 'chart';
   metadata: Record<string, any>;
   clusterId?: string;
   relatedNodeIds: string[];
@@ -33,7 +33,7 @@ export interface Cluster {
 export interface AgentTask {
   id: string;
   canvasId: string;
-  type: 'research' | 'write' | 'mockup';
+  type: 'brainstorm' | 'research' | 'plan' | 'write' | 'mockup';
   input: {
     cluster_label: string;
     thoughts: string[];

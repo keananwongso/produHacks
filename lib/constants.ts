@@ -51,6 +51,20 @@ export const NODE_STYLES: Record<string, {
     text: 'text-[#1A1A1A]',
     icon: '🎨',
   },
+  checklist: {
+    bg: 'bg-[#F0EDF5]',
+    border: 'border-[#B8A8D4]/60',
+    glow: 'shadow-[0_2px_12px_rgba(0,0,0,0.07)]',
+    text: 'text-[#1A1A1A]',
+    icon: '📋',
+  },
+  chart: {
+    bg: 'bg-[#EDF3F8]',
+    border: 'border-[#A8BDD4]/60',
+    glow: 'shadow-[0_2px_12px_rgba(0,0,0,0.07)]',
+    text: 'text-[#1A1A1A]',
+    icon: '📊',
+  },
 };
 
 // Animation durations
