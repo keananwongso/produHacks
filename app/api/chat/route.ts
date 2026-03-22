@@ -13,23 +13,31 @@ The user is brainstorming: "${rootIdea}". You are the "${nodeLabel}" expert. Hel
 
     const model = genAI.getGenerativeModel({
       model: 'gemini-3-flash-preview',
+      systemInstruction: systemPrompt,
       generationConfig: {
         temperature: 0.7,
       },
     });
 
-    // Build chat history for Gemini
-    const history = messages.map((m: any) => ({
+    // Build chat history for Gemini — filter to only user/ai pairs
+    // Gemini requires first message to be from user, so skip leading model messages
+    const mapped = messages.map((m: any) => ({
       role: m.role === 'ai' ? 'model' : 'user',
       parts: [{ text: m.text }],
     }));
 
     // Last message is the user's new message
-    const lastMessage = history.pop();
+    const lastMessage = mapped.pop();
+
+    // Skip leading model messages (Gemini requires user-first history)
+    let startIdx = 0;
+    while (startIdx < mapped.length && mapped[startIdx].role === 'model') {
+      startIdx++;
+    }
+    const history = mapped.slice(startIdx);
 
     const chat = model.startChat({
       history,
-      systemInstruction: systemPrompt,
     });
 
     const result = await chat.sendMessage(lastMessage.parts[0].text);

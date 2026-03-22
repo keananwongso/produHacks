@@ -73,6 +73,27 @@ export function simulateStep(
     }
   }
 
+  // 2.5 Dynamic Obstacle Repulsion (e.g. Response Card)
+  // This allows UI elements to push physics nodes away naturally.
+  if ((globalThis as any).__physicsRepulsors) {
+    const repulsors = (globalThis as any).__physicsRepulsors as { x: number, y: number, radius: number, strength: number }[];
+    for (const r of repulsors) {
+      for (const node of nodes) {
+        if (node.id === 'center') continue; // don't push the center pill
+        const dx = node.x - r.x;
+        const dy = node.y - r.y;
+        const distSq = dx * dx + dy * dy || 1;
+        if (distSq < r.radius * r.radius) {
+          const dist = Math.sqrt(distSq);
+          // Exponential falloff for strong, smooth boundary pushing
+          const force = (r.strength / dist) * Math.pow(1 - dist / r.radius, 2);
+          node.vx += (dx / dist) * force;
+          node.vy += (dy / dist) * force;
+        }
+      }
+    }
+  }
+
   // 3. Centering gravity (gentle pull toward viewport center)
   for (const node of nodes) {
     if (node.isDragging) continue;

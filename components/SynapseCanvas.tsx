@@ -20,6 +20,7 @@ import { NoteNode } from './nodes/NoteNode';
 import { DeliverableNode } from './nodes/DeliverableNode';
 import { AgentDetailPanel } from './AgentDetailPanel';
 
+
 interface Branch {
   id: string;
   label: string;
@@ -96,6 +97,10 @@ function SynapseCanvasInner({ idea, branches, isLoading }: SynapseCanvasProps) {
   const [isCenterChatLoading, setIsCenterChatLoading] = useState(false);
   const [centerExpanded, setCenterExpanded] = useState(false);
 
+  // Orchestrator response card
+  const [responseCard, setResponseCard] = useState<string | null>(null);
+  const savedPositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map());
+
   // ─── AUTO-TRIGGER AGENTS ───
   // When branches arrive, automatically start each agent thinking
   useEffect(() => {
@@ -146,12 +151,8 @@ function SynapseCanvasInner({ idea, branches, isLoading }: SynapseCanvasProps) {
         return next;
       });
 
-      // Update center floating message
-      setFloatingMessages([{
-        id: `float-${Date.now()}`,
-        role: 'ai',
-        text: `${branch.label}: ${step}`,
-      }]);
+      // (Thinking now shown above each agent's node — not above center)
+
     }
 
     // Call the API
@@ -181,11 +182,8 @@ function SynapseCanvasInner({ idea, branches, isLoading }: SynapseCanvasProps) {
           return next;
         });
 
-        setFloatingMessages([{
-          id: `float-${Date.now()}`,
-          role: 'ai',
-          text: `${branch.label}: ${step}`,
-        }]);
+        // (Thinking steps are rendered above each BranchNode directly)
+
 
         await new Promise(r => setTimeout(r, 1000));
       }
@@ -216,8 +214,15 @@ function SynapseCanvasInner({ idea, branches, isLoading }: SynapseCanvasProps) {
         role: 'ai',
         text: `${branch.label} agent finished — produced ${delivCount} deliverable${delivCount !== 1 ? 's' : ''}.`,
       };
-      setFloatingMessages([msg]);
-      setCenterMessages(prev => [...prev, msg]);
+      // After all agents are done, invite the user to interact via center pill
+      const allDone = !Array.from(agentStates.values()).some(s => s.status !== 'done');
+      if (allDone || [...agentStates.entries()].filter(([,s]) => s.status !== 'done').length <= 1) {
+        setFloatingMessages([{
+          id: `float-${Date.now()}`,
+          role: 'ai',
+          text: 'All done — ask me anything about your plan ↓',
+        }]);
+      }
 
     } catch (err) {
       console.error(`Agent ${branch.label} error:`, err);
@@ -303,9 +308,8 @@ function SynapseCanvasInner({ idea, branches, isLoading }: SynapseCanvasProps) {
   // Handle deliverable expand
   const handleDeliverableExpand = useCallback((nodeId: string, x: number, y: number) => {
     setCenterExpanded(false);
-    reactFlowInstance.setCenter(x, y, { duration: 400, zoom: 1 });
-    setTimeout(() => setExpandedNodeId(nodeId), 150);
-  }, [reactFlowInstance]);
+    setExpandedNodeId(nodeId);
+  }, []);
 
   // Update floating message when branches arrive
   useEffect(() => {
@@ -321,6 +325,133 @@ function SynapseCanvasInner({ idea, branches, isLoading }: SynapseCanvasProps) {
     }
   }, [branches]);
 
+  // Push nodes away from the response card zone, save original positions
+  const pushNodesForCard = useCallback(() => {
+    // The chat card is 480px wide centered at flow x=0 (center node is at x=-70 with width 140).
+    // Card spans: x=[-70 + (-170)] = -240 to -240+480 = 240 in flow coords.
+    // Pill is 460px wide centered at flow x=0 → y goes from ~-24 to ~-430 above it.
+    const cardRect = { x: -240, y: -450, width: 480, height: 450 };
+    const padding = 30;
+
+    setNodes(nds => {
+      const saved = new Map<string, { x: number; y: number }>();
+      const pushVectors = new Map<string, { dx: number; dy: number }>();
+
+      // 1. Calculate safe push vectors per branch cluster
+      nds.forEach(node => {
+        if (node.type === 'branch') {
+          const branchId = node.id;
+          const deliverables = nds.filter(n => n.type === 'deliverable' && n.id.includes(branchId));
+          const cluster = [node, ...deliverables];
+          
+          let overlaps = false;
+          let minX = Infinity, maxX = -Infinity, minY = Infinity;
+          
+          cluster.forEach(gn => {
+            const nx = gn.position.x; const ny = gn.position.y;
+            const nodeW = 180; const nodeH = 60;
+            if (nx + nodeW > cardRect.x - padding && nx < cardRect.x + cardRect.width + padding &&
+                ny + nodeH > cardRect.y - padding && ny < cardRect.y + cardRect.height + padding) {
+              overlaps = true;
+            }
+            minX = Math.min(minX, nx);
+            maxX = Math.max(maxX, nx + nodeW);
+            minY = Math.min(minY, ny);
+          });
+
+          if (overlaps) {
+            const bx = node.position.x;
+            const by = node.position.y;
+            let dx = 0;
+            let dy = 0;
+
+            if (by > -60) {
+              // It's mostly below the text box. Push it down more.
+              dy = 120;
+              dx = (bx < 0) ? -80 : 80; 
+            } else {
+              // Push it cleanly to the side to avoid hanging above the response
+              if (bx < 0) {
+                // Shift left so cluster right bounds clear the left of the card
+                const requiredDx = (cardRect.x - padding) - maxX;
+                dx = Math.min(-140, requiredDx);
+              } else {
+                // Shift right so cluster left bounds clear the right of the card
+                const requiredDx = (cardRect.x + cardRect.width + padding) - minX;
+                dx = Math.max(140, requiredDx);
+              }
+            }
+            pushVectors.set(branchId, { dx, dy });
+          }
+        }
+      });
+
+      if (pushVectors.size === 0) return nds;
+
+      const updated = nds.map(node => {
+        if (node.id === 'center' || node.type === 'note') return node;
+
+        let pushV = { dx: 0, dy: 0 };
+        if (node.type === 'branch' && pushVectors.has(node.id)) {
+          pushV = pushVectors.get(node.id)!;
+        } else if (node.type === 'deliverable') {
+          // Node IDs are 'deliv-{branchId}-{i}-{timestamp}'
+          // branchId itself might contain dashes so strip 'deliv-' prefix, then
+          // try each progressively shorter suffix until we find a known branch.
+          const withoutPrefix = node.id.replace(/^deliv-/, '');
+          const subParts = withoutPrefix.split('-');
+          for (let k = subParts.length - 1; k >= 1; k--) {
+            const candidateId = subParts.slice(0, k).join('-');
+            if (pushVectors.has(candidateId)) {
+              pushV = pushVectors.get(candidateId)!;
+              break;
+            }
+          }
+        }
+
+        if (pushV.dx !== 0 || pushV.dy !== 0) {
+          saved.set(node.id, { x: node.position.x, y: node.position.y });
+          return {
+            ...node,
+            position: {
+              x: node.position.x + pushV.dx,
+              y: node.position.y + pushV.dy
+            }
+          };
+        }
+        return node;
+      });
+
+      // Merge with any previously saved positions (first-save wins)
+      const merged = new Map([...saved, ...savedPositionsRef.current]);
+      savedPositionsRef.current = merged;
+      return updated;
+    });
+  }, [setNodes]);
+
+  // Restore nodes to saved positions when card closes
+  const restoreNodes = useCallback(() => {
+    const saved = savedPositionsRef.current;
+    if (saved.size === 0) return;
+
+    setNodes(nds =>
+      nds.map(node => {
+        const pos = saved.get(node.id);
+        if (pos) {
+          return { ...node, position: pos };
+        }
+        return node;
+      })
+    );
+    savedPositionsRef.current = new Map();
+  }, [setNodes]);
+
+  // Dismiss response card and restore nodes
+  const handleDismissResponse = useCallback(() => {
+    setResponseCard(null);
+    restoreNodes();
+  }, [restoreNodes]);
+
   // Handle orchestrator chat messages
   const handleCenterSendMessage = useCallback(async (text: string) => {
     const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', text };
@@ -328,7 +459,6 @@ function SynapseCanvasInner({ idea, branches, isLoading }: SynapseCanvasProps) {
     setIsCenterChatLoading(true);
 
     try {
-      // Build context from all agent states
       const agentContext = Array.from(agentStates.entries()).map(([id, state]) => {
         const branch = branches.find(b => b.id === id);
         return `${branch?.label || id}: ${state.status}${state.deliverables.length > 0 ? ` (${state.deliverables.length} deliverables)` : ''}`;
@@ -349,21 +479,22 @@ function SynapseCanvasInner({ idea, branches, isLoading }: SynapseCanvasProps) {
         const { reply } = await res.json();
         const aiMsg: ChatMessage = { id: (Date.now() + 1).toString(), role: 'ai', text: reply };
         setCenterMessages(prev => [...prev, aiMsg]);
-        setFloatingMessages([aiMsg]);
+        setResponseCard(reply);
+        setTimeout(() => pushNodesForCard(), 50);
       }
     } catch (err) {
       console.error('Center chat error:', err);
     } finally {
       setIsCenterChatLoading(false);
     }
-  }, [centerMessages, idea, agentStates, branches]);
+  }, [centerMessages, idea, agentStates, branches, pushNodesForCard]);
 
   // Handle center node expand
   const handleCenterExpand = useCallback(() => {
     setExpandedNodeId(null);
-    reactFlowInstance.setCenter(0, 0, { duration: 400, zoom: 1 });
-    setTimeout(() => setCenterExpanded(true), 100);
-  }, [reactFlowInstance]);
+    // Do NOT dismiss the response card — the user should still see chat history
+    setCenterExpanded(true);
+  }, []);
 
   const handleCenterCollapse = useCallback(() => {
     setCenterExpanded(false);
@@ -397,6 +528,8 @@ function SynapseCanvasInner({ idea, branches, isLoading }: SynapseCanvasProps) {
         chatMessages: centerMessages,
         onSendMessage: handleCenterSendMessage,
         isChatLoading: isCenterChatLoading,
+        responseCard,
+        onDismissResponse: handleDismissResponse,
       },
       style: { cursor: 'default' },
     };
@@ -405,7 +538,7 @@ function SynapseCanvasInner({ idea, branches, isLoading }: SynapseCanvasProps) {
       const otherNodes = prev.filter(n => n.id !== 'center');
       return [centerNode, ...otherNodes];
     });
-  }, [idea, isLoading, centerExpanded, floatingMessages, centerMessages, isCenterChatLoading, setNodes, handleCenterExpand, handleCenterCollapse, handleCenterSendMessage]);
+  }, [idea, isLoading, centerExpanded, floatingMessages, centerMessages, isCenterChatLoading, setNodes, handleCenterExpand, handleCenterCollapse, handleCenterSendMessage, responseCard, handleDismissResponse]);
 
   // Spawn branch nodes when branches arrive
   useEffect(() => {
@@ -541,7 +674,7 @@ function SynapseCanvasInner({ idea, branches, isLoading }: SynapseCanvasProps) {
       lastPaneClickRef.current = now;
       lastPaneClickPosRef.current = { x: event.clientX, y: event.clientY };
     }
-  }, [expandedNodeId, centerExpanded, reactFlowInstance, setNodes, handleNoteTextChange]);
+  }, [expandedNodeId, centerExpanded, responseCard, handleDismissResponse, reactFlowInstance, setNodes, handleNoteTextChange]);
 
   return (
     <div className="w-full h-full">

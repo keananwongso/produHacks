@@ -90,15 +90,7 @@ export function BranchNode({ data }: { data: BranchNodeData }) {
         {/* Label */}
         <span className="text-[13px] font-semibold text-[#1a1a2e] whitespace-nowrap tracking-[-0.1px]">{label}</span>
 
-        {/* Thinking status text inside card */}
-        {agentStatus === 'thinking' && agentThinking && (
-          <p
-            className="text-[11px] text-[#888780] mt-1.5 leading-[1.4] animate-pulse"
-            style={{ maxWidth: 160 }}
-          >
-            {agentThinking}
-          </p>
-        )}
+
 
         {agentStatus === 'done' && (
           <p className="text-[11px] text-[#4a9e6b] mt-1.5 leading-[1.4]">
@@ -106,6 +98,34 @@ export function BranchNode({ data }: { data: BranchNodeData }) {
           </p>
         )}
       </div>
+      {/* Floating thinking bubble above the node */}
+      {agentStatus === 'thinking' && agentThinking && (
+        <div
+          className="absolute left-1/2 pointer-events-none"
+          style={{
+            bottom: 'calc(100% + 8px)',
+            transform: 'translateX(-50%)',
+            zIndex: 10,
+            maxWidth: 220,
+            whiteSpace: 'nowrap',
+            animation: 'floatIn 0.4s cubic-bezier(0.16,1,0.3,1) both',
+          }}
+        >
+          <span
+            className="text-[11px] text-[#666460] font-medium"
+            style={{
+              backgroundColor: 'rgba(245,244,240,0.92)',
+              padding: '3px 10px',
+              borderRadius: 20,
+              display: 'inline-block',
+              backdropFilter: 'blur(4px)',
+              border: '1px solid rgba(0,0,0,0.05)',
+            }}
+          >
+            {agentThinking}
+          </span>
+        </div>
+      )}
       {handles}
     </div>
   );

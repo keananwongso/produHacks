@@ -1,7 +1,7 @@
 'use client';
 
 import { Handle, Position } from 'reactflow';
-import { useState } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import { FileText, X } from 'lucide-react';
 
 interface DeliverableNodeData {
@@ -9,15 +9,31 @@ interface DeliverableNodeData {
   summary: string;
   content: string;
   type: 'doc' | 'chart' | 'mockup';
-  color: string; // inherited from parent agent's accent color
+  color: string;
   isExpanded: boolean;
   onExpand: () => void;
   onCollapse: () => void;
   isDimmed: boolean;
 }
 
+const PANEL_WIDTH = 680;
+const CHIP_WIDTH = 130;
+const STEM_HEIGHT = 20;
+
 export function DeliverableNode({ data }: { data: DeliverableNodeData }) {
   const { title, summary, content, color, isExpanded, onExpand, onCollapse, isDimmed } = data;
+  const editorRef = useRef<HTMLDivElement>(null);
+
+  // Seed editor with content on first expand
+  useEffect(() => {
+    if (isExpanded && editorRef.current && editorRef.current.innerHTML === '') {
+      // Convert **bold** to <strong> and preserve line breaks
+      const html = content
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\n/g, '<br/>');
+      editorRef.current.innerHTML = html;
+    }
+  }, [isExpanded, content]);
 
   const handles = (
     <>
@@ -28,86 +44,177 @@ export function DeliverableNode({ data }: { data: DeliverableNodeData }) {
     </>
   );
 
-  // ─── COLLAPSED: small circular node ───
-  if (!isExpanded) {
-    return (
-      <div className="relative">
-        <div
-          className="node-spawn flex flex-col items-center justify-center cursor-pointer"
-          style={{
-            width: 130,
-            padding: '12px 14px',
-            background: 'linear-gradient(160deg, #ffffff 0%, #faf9f7 100%)',
-            border: `1.5px solid ${color}40`,
-            borderRadius: 20,
-            boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.06)',
-            opacity: isDimmed ? 0.25 : 1,
-            pointerEvents: isDimmed ? 'none' : 'auto',
-            transition: 'opacity 0.3s ease, box-shadow 0.2s ease, border-color 0.2s ease',
-          }}
-          onMouseEnter={e => { if (!isDimmed) { (e.currentTarget as HTMLElement).style.boxShadow = '0 2px 6px rgba(0,0,0,0.06), 0 8px 20px rgba(0,0,0,0.1)'; (e.currentTarget as HTMLElement).style.borderColor = color; } }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.boxShadow = '0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.06)'; (e.currentTarget as HTMLElement).style.borderColor = `${color}40`; }}
-          onClick={() => { if (!isDimmed) onExpand(); }}
-        >
-          <div className="flex items-center gap-1.5 mb-1">
-            <FileText className="w-3 h-3" style={{ color }} />
-            <span
-              className="text-[9px] font-bold tracking-[0.06em] uppercase"
-              style={{ color }}
-            >
-              Doc
-            </span>
-          </div>
-          <span className="text-[12px] font-medium text-[#1a1a2e] text-center leading-[1.3]">{title}</span>
-        </div>
-        {handles}
-      </div>
-    );
-  }
-
-  // ─── EXPANDED: show full content ───
   return (
-    <div
-      style={{
-        width: 340,
-        maxHeight: 380,
-        borderRadius: 16,
-        backgroundColor: '#ffffff',
-        border: `1.5px solid ${color}40`,
-        boxShadow: '0 2px 6px rgba(0,0,0,0.04), 0 16px 48px rgba(0,0,0,0.13), 0 4px 12px rgba(0,0,0,0.06)',
-        overflow: 'hidden',
-        position: 'relative',
-        zIndex: 50,
-      }}
-    >
+    <div style={{ position: 'relative', overflow: 'visible', width: CHIP_WIDTH }}>
       {handles}
 
-      <div
-        className="flex flex-col h-full w-full"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-black/[0.06]">
-          <div className="flex items-center gap-2">
-            <FileText className="w-3.5 h-3.5" style={{ color }} />
-            <span className="text-[13px] font-semibold text-[#1a1a2e] tracking-[-0.1px]">{title}</span>
-          </div>
-          <button
-            onClick={(e) => { e.stopPropagation(); onCollapse(); }}
-            className="p-1 rounded-md hover:bg-black/5 transition-colors"
+      {/* ── Editor panel — floats above the chip ── */}
+      {isExpanded && (
+        <div
+          className="nodrag nowheel"
+          style={{
+            position: 'absolute',
+            // Centre the panel over the chip
+            left: `${(CHIP_WIDTH - PANEL_WIDTH) / 2}px`,
+            // Sit above the chip + stem
+            bottom: `calc(100% + ${STEM_HEIGHT}px)`,
+            width: PANEL_WIDTH,
+            maxHeight: 560,
+            borderRadius: 20,
+            backgroundColor: '#ffffff',
+            border: `1.5px solid ${color}25`,
+            boxShadow: '0 24px 64px rgba(0,0,0,0.10), 0 6px 20px rgba(0,0,0,0.05)',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+            zIndex: 80,
+            animation: 'panelRise 0.28s cubic-bezier(0.16,1,0.3,1) both',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header bar */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '16px 24px',
+              borderBottom: '1px solid rgba(0,0,0,0.05)',
+              backgroundColor: '#faf9f7',
+              flexShrink: 0,
+            }}
           >
-            <X className="w-3.5 h-3.5 text-[#888780]" />
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto px-4 py-3 min-h-0">
-          <p className="text-[11px] text-[#888780] mb-2">{summary}</p>
-          <div className="text-[12px] leading-[1.65] text-[#2a2a3e] whitespace-pre-wrap">
-            {content}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <FileText style={{ width: 16, height: 16, color }} />
+              <span style={{ fontSize: 15, fontWeight: 600, color: '#1a1a2e', letterSpacing: '-0.2px' }}>
+                {title}
+              </span>
+            </div>
+            <button
+              onClick={(e) => { e.stopPropagation(); onCollapse(); }}
+              style={{
+                padding: '4px 8px',
+                borderRadius: 8,
+                border: 'none',
+                background: 'transparent',
+                cursor: 'pointer',
+                color: '#aaa8a2',
+                display: 'flex',
+                alignItems: 'center',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.05)')}
+              onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+            >
+              <X style={{ width: 16, height: 16 }} />
+            </button>
           </div>
+
+          {/* Summary subtitle */}
+          {summary && (
+            <div
+              style={{
+                padding: '12px 24px 0',
+                fontSize: 13,
+                lineHeight: 1.6,
+                color: '#888780',
+                flexShrink: 0,
+              }}
+            >
+              {summary}
+            </div>
+          )}
+
+          {/* Editable body — stop ALL events from reaching ReactFlow */}
+          <div
+            ref={editorRef}
+            contentEditable
+            suppressContentEditableWarning
+            spellCheck={false}
+            onKeyDown={(e) => e.stopPropagation()}
+            onKeyUp={(e) => e.stopPropagation()}
+            onKeyPress={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onMouseUp={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+            style={{
+              flex: 1,
+              overflowY: 'auto',
+              padding: '20px 24px 28px',
+              fontSize: 14,
+              lineHeight: 1.85,
+              color: '#2a2a3e',
+              outline: 'none',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              cursor: 'text',
+            }}
+          />
         </div>
+      )}
+
+      {/* ── Stem connector ── */}
+      {isExpanded && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: '100%',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            width: 1.5,
+            height: STEM_HEIGHT,
+            backgroundColor: `${color}60`,
+          }}
+        />
+      )}
+
+      {/* ── The doc chip — always visible ── */}
+      <div
+        className="node-spawn flex flex-col items-center justify-center cursor-pointer"
+        style={{
+          width: CHIP_WIDTH,
+          padding: '12px 14px',
+          background: isExpanded
+            ? `linear-gradient(160deg, #ffffff 0%, ${color}12 100%)`
+            : 'linear-gradient(160deg, #ffffff 0%, #faf9f7 100%)',
+          border: isExpanded ? `1.5px solid ${color}` : `1.5px solid ${color}40`,
+          borderRadius: 20,
+          boxShadow: isExpanded
+            ? `0 2px 8px ${color}30, 0 6px 20px ${color}15`
+            : '0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.06)',
+          opacity: isDimmed ? 0.25 : 1,
+          pointerEvents: isDimmed ? 'none' : 'auto',
+          transition: 'opacity 0.3s ease, box-shadow 0.2s ease, border-color 0.2s ease, background 0.2s ease',
+        }}
+        onMouseEnter={e => {
+          if (!isDimmed && !isExpanded) {
+            (e.currentTarget as HTMLElement).style.boxShadow = '0 2px 6px rgba(0,0,0,0.06), 0 8px 20px rgba(0,0,0,0.1)';
+            (e.currentTarget as HTMLElement).style.borderColor = color;
+          }
+        }}
+        onMouseLeave={e => {
+          if (!isExpanded) {
+            (e.currentTarget as HTMLElement).style.boxShadow = '0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.06)';
+            (e.currentTarget as HTMLElement).style.borderColor = `${color}40`;
+          }
+        }}
+        onClick={() => { if (!isDimmed) isExpanded ? onCollapse() : onExpand(); }}
+      >
+        <div className="flex items-center gap-1.5 mb-1">
+          <FileText className="w-3 h-3" style={{ color }} />
+          <span className="text-[9px] font-bold tracking-[0.06em] uppercase" style={{ color }}>
+            Doc
+          </span>
+        </div>
+        <span className="text-[12px] font-medium text-[#1a1a2e] text-center leading-[1.3]">{title}</span>
       </div>
+
+      <style>{`
+        @keyframes panelRise {
+          from { opacity: 0; transform: translateY(8px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
     </div>
   );
 }
