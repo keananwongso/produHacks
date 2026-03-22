@@ -1,6 +1,6 @@
 # Synapse — Multi-Agent Spatial Brainstorming
 
-> Your thoughts, beautifully untangled.
+> Reimagine thinking.
 
 Synapse is a spatial canvas where AI agents autonomously break down your ideas into branches, research topics, create plans, draft documents, and generate live mini-websites — all appearing as interactive nodes on an infinite canvas.
 
@@ -72,25 +72,32 @@ Requires Python 3.12 and the env vars in `agent/.env`.
 ## ✨ Features
 
 - **Spatial Canvas** — Infinite pan/zoom canvas powered by React Flow
-- **Multi-Agent Branching** — AI breaks your idea into parallel branches, each handled by a dedicated Fetch.ai agent
-- **Live Deliverables** — Agents produce doc nodes and live HTML mini-site previews, rendered directly on the canvas
-- **Orchestrator Chat** — Talk to the central orchestrator to ask questions across all branches
-- **Agent Deep-Dive** — Click any branch to open a side panel showing agent thinking and outputs
-- **Note Nodes** — Add manual notes connected to any node
-- **Smooth Transitions** — Homepage input morphs into the canvas center capsule
+- **Multi-Agent Branching** — AI breaks your idea into 4-5 parallel branches, each handled by a dedicated Fetch.ai agent with its own persona and expertise
+- **Live Deliverables** — Each agent produces a written doc and an interactive HTML mini-site preview, generated in parallel and rendered as draggable, resizable canvas nodes
+- **Inline Agent Chat** — Click any branch node to expand an inline chat interface and ask follow-up questions to that agent in character
+- **Orchestrator Chat** — Talk to the central node to ask questions across all branches or trigger synthesis
+- **Master Plan Synthesis** — Ask the orchestrator to synthesize all agent outputs into a structured 4-week action plan, rendered as a capstone node on the canvas
+- **Smooth Morph Transition** — Homepage input pill animates and morphs directly into the canvas center capsule — no page reload
+- **Demo Mode** — Typing "Start a student club at UBC" instantly loads 5 hardcoded UBC-specific branches (AMS Requirements, Campus Operations, Club Identity, Financial Strategy, Member Recruitment) for a deterministic demo experience
 
 ## 🏗 Architecture
 
 ```
-User types idea
+User types idea on homepage
       ↓
-/api/branch  →  Gemini generates 4-6 branch topics
+Input pill morphs → canvas center node
       ↓
-Canvas spawns branch nodes
+/api/branch  →  Gemini generates 4-5 branch topics (or hardcoded demo set)
       ↓
-/api/agent-think  →  Each agent (Gemini) produces thinking steps + deliverables
+Canvas spawns branch nodes with staggered animation
       ↓
-Deliverable nodes appear: Doc cards + live HTML Site previews
+/api/agent-think  →  Each agent runs in parallel:
+    - Doc generation (Gemini)  ←── Promise.all
+    - Mockup generation (Gemini) ←─┘
+      ↓
+Deliverable chip nodes appear, click to open resizable panel nodes
+      ↓
+/api/synthesize  →  All deliverables → Gemini → 4-week Master Plan node
 ```
 
 **Fetch.ai Agent Pipeline:**
@@ -108,7 +115,7 @@ Results → Supabase agent_results → Realtime → Canvas
 
 - **Frontend:** Next.js 15, React 19, TypeScript, Tailwind CSS v4
 - **Canvas:** React Flow with custom node types
-- **AI:** Google Gemini (`gemini-2.0-flash`)
+- **AI:** Google Gemini (`gemini-3-flash-preview`)
 - **Agents:** Fetch.ai uAgents (Python 3.12) — hosted on Agentverse
 - **Database:** Supabase (Postgres + Realtime)
 - **Deployment:** Vercel (frontend) + Agentverse (agents)
@@ -116,27 +123,23 @@ Results → Supabase agent_results → Realtime → Canvas
 ## 📁 Project Structure
 
 ```
-synapse/
+drift/
 ├── app/
-│   ├── page.tsx                    # Homepage + transition logic
+│   ├── page.tsx                    # Homepage + morph transition logic
 │   ├── globals.css                 # Animations and styles
 │   └── api/
-│       ├── branch/route.ts         # Generate branches from idea
-│       ├── agent-think/route.ts    # Agent thinking + deliverables
-│       ├── chat/route.ts           # Orchestrator chat
-│       └── process/route.ts        # Intent routing
+│       ├── branch/route.ts         # Generate branches (+ hardcoded demo set)
+│       ├── agent-think/route.ts    # Parallel doc + mockup generation
+│       ├── synthesize/route.ts     # Master plan synthesis from all deliverables
+│       └── chat/route.ts           # Orchestrator + agent chat
 ├── components/
 │   ├── SynapseCanvas.tsx           # Main canvas orchestrator
 │   └── nodes/
-│       ├── CenterNode.tsx          # Central idea capsule
-│       ├── BranchNode.tsx          # Agent branch nodes
-│       ├── DeliverableNode.tsx     # Doc + Site deliverable nodes
+│       ├── CenterNode.tsx          # Central idea capsule with chat
+│       ├── BranchNode.tsx          # Agent branch nodes with inline chat
+│       ├── DeliverableNode.tsx     # Doc + mockup chip nodes
+│       ├── MasterPlanNode.tsx      # 4-week action plan capstone node
 │       └── NoteNode.tsx            # User note nodes
-├── lib/
-│   ├── types.ts                    # TypeScript types
-│   ├── constants.ts                # Physics + style constants
-│   ├── supabase.ts                 # Supabase client
-│   └── utils.ts                    # Utilities
 └── agent/
     ├── agent.py                    # All Fetch.ai agents (local bureau)
     ├── requirements.txt            # Python dependencies
