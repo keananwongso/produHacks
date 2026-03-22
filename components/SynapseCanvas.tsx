@@ -702,7 +702,7 @@ function SynapseCanvasInner({ idea, branches, isLoading }: SynapseCanvasProps) {
           }
         }}
         nodeTypes={nodeTypes}
-        defaultViewport={{ x: window.innerWidth / 2 - 70, y: window.innerHeight / 2 - 24, zoom: 0.75 }}
+        defaultViewport={{ x: window.innerWidth / 2, y: window.innerHeight / 2, zoom: 0.75 }}
         nodesDraggable={!expandedNodeId && !centerExpanded}
         nodesConnectable={false}
         elementsSelectable={true}

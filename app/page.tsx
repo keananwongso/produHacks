@@ -6,7 +6,7 @@ import dynamic from 'next/dynamic';
 
 const SynapseCanvas = dynamic(() => import('@/components/SynapseCanvas'), { ssr: false });
 
-type Phase = 'homepage' | 'collapsing' | 'canvas';
+type Phase = 'homepage' | 'transitioning' | 'canvas';
 
 interface Branch {
   id: string;
@@ -28,6 +28,7 @@ export default function SynapsePage() {
   const [idea, setIdea] = useState('');
   const [branches, setBranches] = useState<Branch[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [morphed, setMorphed] = useState(false); // triggers ghost pill CSS transition
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Cursor orb — smooth RAF interpolation, no re-renders
@@ -70,14 +71,29 @@ export default function SynapsePage() {
     }
   }, [phase]);
 
+  // Trigger ghost pill morph one frame after it mounts
+  useEffect(() => {
+    if (phase === 'transitioning') {
+      // Double-rAF ensures the browser has painted the initial state first
+      const id = requestAnimationFrame(() => {
+        requestAnimationFrame(() => setMorphed(true));
+      });
+      return () => cancelAnimationFrame(id);
+    } else {
+      setMorphed(false);
+    }
+  }, [phase]);
+
   const handleSubmit = useCallback(async () => {
     const trimmed = idea.trim();
     if (!trimmed || isLoading) return;
 
     setIsLoading(true);
-    setPhase('collapsing');
+    // Single transition: ghost pill morphs, text fades, canvas rises
+    setPhase('transitioning');
 
-    await new Promise((r) => setTimeout(r, 500));
+    // Wait for morph animation to finish
+    await new Promise((r) => setTimeout(r, 700));
     setPhase('canvas');
 
     try {
@@ -109,7 +125,7 @@ export default function SynapsePage() {
 
   // ─── UNIFIED RENDER ───
   return (
-    <div className={`h-screen w-screen overflow-hidden relative ${phase !== 'canvas' ? 'dot-grid' : ''}`}>
+    <div className={`h-screen w-screen overflow-hidden relative ${phase === 'homepage' ? 'dot-grid' : ''}`}>
       {/* Static corner orbs — anchored deep into corners, present in all phases */}
       <div style={{ position: 'fixed', top: -300, left: -300, width: 700, height: 700, borderRadius: '50%', background: 'radial-gradient(circle, rgba(155,142,196,0.75) 0%, rgba(155,142,196,0.35) 40%, transparent 70%)', pointerEvents: 'none', zIndex: 0 }} />
       <div style={{ position: 'fixed', top: -300, right: -300, width: 680, height: 680, borderRadius: '50%', background: 'radial-gradient(circle, rgba(123,169,154,0.7) 0%, rgba(123,169,154,0.3) 40%, transparent 70%)', pointerEvents: 'none', zIndex: 0 }} />
@@ -134,18 +150,11 @@ export default function SynapsePage() {
         }}
       />
 
-      {/* HOMEPAGE LAYER */}
-      {(phase === 'homepage' || phase === 'collapsing') && (
+      {/* HOMEPAGE LAYER — unmounts instantly when transitioning starts (ghost pill takes over) */}
+      {phase === 'homepage' && (
         <div
           className="absolute inset-0 flex flex-col items-center px-6 w-full"
-          style={{
-            paddingTop: '18vh',
-            zIndex: 1,
-            opacity: phase === 'collapsing' ? 0 : 1,
-            transform: phase === 'collapsing' ? 'translateY(-30px) scale(0.98)' : 'none',
-            transition: 'all 0.5s cubic-bezier(0.4,0,0.2,1)',
-            pointerEvents: phase === 'collapsing' ? 'none' : 'auto',
-          }}
+          style={{ paddingTop: '18vh', zIndex: 2 }}
         >
           {/* Heading */}
           <div className="entrance-h1">
@@ -161,14 +170,8 @@ export default function SynapsePage() {
             </p>
           </div>
 
-          {/* Input */}
-          <div
-            className="entrance-chatbox w-full max-w-[560px]"
-            style={{
-              marginTop: 48,
-              ...(phase === 'collapsing' ? { transform: 'scale(0.9)', opacity: 0, transition: 'all 0.3s ease' } : {}),
-            }}
-          >
+          {/* Input pill */}
+          <div className="entrance-chatbox w-full max-w-[560px]" style={{ marginTop: 48 }}>
             <div
               className="relative rounded-full"
               style={{
@@ -188,12 +191,11 @@ export default function SynapsePage() {
                 placeholder="What are you working on?"
                 className="w-full bg-transparent text-[16px] text-[#1a1a2e] placeholder:text-[#c0bfbb] outline-none rounded-full"
                 style={{ height: '60px', paddingLeft: '32px', paddingRight: '64px' }}
-                disabled={phase === 'collapsing'}
               />
               <button
                 type="button"
                 onClick={handleSubmit}
-                disabled={!idea.trim() || phase === 'collapsing'}
+                disabled={!idea.trim()}
                 className="absolute right-2 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-[#1a1a2e] flex items-center justify-center transition-all disabled:opacity-20 hover:opacity-75"
               >
                 <ArrowRight className="w-4 h-4 text-white" />
@@ -226,9 +228,78 @@ export default function SynapsePage() {
         </div>
       )}
 
-      {/* CANVAS LAYER */}
-      {phase === 'canvas' && (
-        <div className="absolute inset-0 z-10 w-full h-full animate-in fade-in duration-500">
+      {/* GHOST PILL — mounts in white/wide state, then morphed flips to trigger CSS transition to dark/small capsule */}
+      {phase === 'transitioning' && (
+        <div
+          style={{
+            position: 'fixed',
+            left: '50%',
+            top: morphed ? '50%' : 'calc(18vh + 168px)',
+            transform: morphed ? 'translate(-50%, -50%)' : 'translateX(-50%)',
+            zIndex: 30,
+            pointerEvents: 'none',
+            width: morphed ? 140 : 560,
+            height: morphed ? 48 : 60,
+            backgroundColor: morphed ? '#1a1a2e' : '#ffffff',
+            borderRadius: 9999,
+            border: morphed ? '1px solid transparent' : '1px solid rgba(0,0,0,0.07)',
+            boxShadow: morphed
+              ? '0 2px 8px rgba(26,26,46,0.2), 0 8px 24px rgba(26,26,46,0.15)'
+              : '0 2px 6px rgba(0,0,0,0.04), 0 8px 28px rgba(0,0,0,0.07)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            overflow: 'hidden',
+            // Fade out at end so it dissolves into the real CenterNode underneath
+            opacity: morphed ? 0 : 1,
+            transition: 'width 0.5s cubic-bezier(0.4,0,0.2,1), height 0.5s cubic-bezier(0.4,0,0.2,1), top 0.5s cubic-bezier(0.4,0,0.2,1), transform 0.5s cubic-bezier(0.4,0,0.2,1), background-color 0.5s cubic-bezier(0.4,0,0.2,1), box-shadow 0.5s cubic-bezier(0.4,0,0.2,1), border-color 0.5s ease, opacity 0.3s ease 0.35s',
+          }}
+        >
+          {/* Text fades out as pill shrinks */}
+          <span
+            style={{
+              color: morphed ? 'transparent' : '#1a1a2e',
+              fontSize: 16,
+              fontWeight: 400,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              transition: 'color 0.2s ease',
+              paddingLeft: 32,
+              paddingRight: 64,
+              width: '100%',
+            }}
+          >
+            {idea}
+          </span>
+          {/* Three dots fade in as it becomes the dark capsule */}
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+              opacity: morphed ? 1 : 0,
+              transition: 'opacity 0.2s ease 0.3s',
+            }}
+          >
+            <span style={{ width: 5, height: 5, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.4)' }} />
+            <span style={{ width: 5, height: 5, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.4)' }} />
+            <span style={{ width: 5, height: 5, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.4)' }} />
+          </div>
+        </div>
+      )}
+
+      {/* CANVAS LAYER — fades in behind the ghost pill during morph */}
+      {(phase === 'transitioning' || phase === 'canvas') && (
+        <div
+          className="absolute inset-0 z-10 w-full h-full"
+          style={{
+            opacity: phase === 'canvas' ? 1 : morphed ? 1 : 0,
+            transition: 'opacity 0.4s ease 0.1s',
+          }}
+        >
           <SynapseCanvas idea={idea} branches={branches} isLoading={isLoading} />
         </div>
       )}
