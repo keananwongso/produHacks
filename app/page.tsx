@@ -30,25 +30,6 @@ export default function DriftPage() {
     zoom,
   });
 
-  // Listen for agent results via Realtime
-  useAgentResults((nodeType, results) => {
-    console.log('🎉 Agent results received:', nodeType, results);
-
-    // Spawn nodes from results
-    const newNodeData = results.map((result: any) => ({
-      text: result.text,
-      isAI: true,
-      nodeType: nodeType as Node['nodeType'],
-      metadata: result.metadata || {},
-    }));
-
-    spawnNodesFromChatbox(newNodeData);
-
-    // Clear processing state
-    setIsProcessing(false);
-    setProcessingStatus('');
-  });
-
   // Helper: Spawn nodes from chatbox position (bottom-center of viewport)
   const spawnNodesFromChatbox = useCallback(
     (nodeData: Array<{ text: string; isAI: boolean; nodeType: Node['nodeType']; metadata?: any }>) => {
@@ -90,6 +71,27 @@ export default function DriftPage() {
     },
     [wake, pan, zoom]
   );
+
+  // Listen for agent results via Realtime
+  const handleAgentResults = useCallback((nodeType: string, results: any[]) => {
+    console.log('🎉 Agent results received:', nodeType, results);
+
+    // Spawn nodes from results
+    const newNodeData = results.map((result: any) => ({
+      text: result.text,
+      isAI: true,
+      nodeType: nodeType as Node['nodeType'],
+      metadata: result.metadata || {},
+    }));
+
+    spawnNodesFromChatbox(newNodeData);
+
+    // Clear processing state
+    setIsProcessing(false);
+    setProcessingStatus('');
+  }, [spawnNodesFromChatbox]);
+
+  useAgentResults(handleAgentResults);
 
   // Handle chat input submission
   const handleChatSubmit = useCallback(

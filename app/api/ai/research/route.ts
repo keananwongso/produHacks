@@ -16,7 +16,7 @@ export async function POST(req: Request) {
 
     // Create task in Supabase (Fetch.ai agent will pick it up)
     const { data: task, error } = await supabase
-      .table('tasks')
+      .from('tasks')
       .insert({
         type: 'research',
         input: { topic, count, focus }

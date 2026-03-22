@@ -18,7 +18,7 @@ export async function POST(req: Request) {
 
     // Use Gemini to understand intent and route to appropriate action
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash-exp',
+      model: 'gemini-3-flash-preview',
       generationConfig: {
         responseMimeType: 'application/json',
         temperature: 0.7,

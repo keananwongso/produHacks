@@ -60,7 +60,7 @@ def handle_research(task: dict) -> list:
 
     print(f"🔍 Researching: {topic}")
 
-    model = genai.GenerativeModel("gemini-2.0-flash-exp")
+    model = genai.GenerativeModel("gemini-3-flash-preview")
 
     prompt = f"""You are a research assistant providing factual insights.
 
@@ -126,7 +126,7 @@ def handle_brainstorm(task: dict) -> list:
 
     print(f"🧠 Brainstorming: {topic}")
 
-    model = genai.GenerativeModel("gemini-2.0-flash-exp")
+    model = genai.GenerativeModel("gemini-3-flash-preview")
 
     prompt = f"""You are a creative brainstorming partner.
 
