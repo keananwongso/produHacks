@@ -43,6 +43,13 @@ export async function POST(req: NextRequest) {
   try {
     const { idea, parentLabel } = await req.json();
 
+    if (!idea || typeof idea !== 'string' || idea.length > 1000) {
+      return NextResponse.json({ error: 'Invalid input' }, { status: 400 });
+    }
+    if (parentLabel && (typeof parentLabel !== 'string' || parentLabel.length > 500)) {
+      return NextResponse.json({ error: 'Invalid input' }, { status: 400 });
+    }
+
     // Check if this is the demo prompt
     if (!parentLabel && idea.toLowerCase().includes(DEMO_TRIGGER)) {
       return NextResponse.json({ branches: DEMO_BRANCHES });
@@ -78,7 +85,7 @@ ${context}`;
   } catch (error: any) {
     console.error('Branch error:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to generate branches' },
+      { error: 'Failed to generate branches' },
       { status: 500 }
     );
   }

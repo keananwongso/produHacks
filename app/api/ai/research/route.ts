@@ -3,11 +3,14 @@ import { supabase } from '@/lib/supabase';
 
 export async function POST(req: Request) {
   try {
-    const { topic, count = 3, focus } = await req.json();
+    const body = await req.json();
+    const topic = body.topic;
+    const count = Math.min(Number(body.count) || 3, 10);
+    const focus = body.focus || '';
 
-    if (!topic) {
+    if (!topic || typeof topic !== 'string' || topic.length > 1000) {
       return NextResponse.json(
-        { error: 'Topic is required' },
+        { error: 'A valid topic is required' },
         { status: 400 }
       );
     }
@@ -27,7 +30,7 @@ export async function POST(req: Request) {
     if (error) {
       console.error('❌ Failed to create task:', error);
       return NextResponse.json(
-        { error: 'Failed to create research task', details: error.message },
+        { error: 'Failed to create research task' },
         { status: 500 }
       );
     }
@@ -40,7 +43,7 @@ export async function POST(req: Request) {
   } catch (error: any) {
     console.error('Research error:', error);
     return NextResponse.json(
-      { error: 'Failed to research', details: error.message },
+      { error: 'Failed to research' },
       { status: 500 }
     );
   }

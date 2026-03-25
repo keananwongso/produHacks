@@ -7,6 +7,19 @@ export async function POST(req: NextRequest) {
   try {
     const { messages, agentPersonality, nodeLabel, rootIdea } = await req.json();
 
+    if (!messages || !Array.isArray(messages) || messages.length > 100) {
+      return NextResponse.json({ error: 'Invalid input' }, { status: 400 });
+    }
+    if (!rootIdea || typeof rootIdea !== 'string' || rootIdea.length > 1000) {
+      return NextResponse.json({ error: 'Invalid input' }, { status: 400 });
+    }
+    if (nodeLabel && (typeof nodeLabel !== 'string' || nodeLabel.length > 500)) {
+      return NextResponse.json({ error: 'Invalid input' }, { status: 400 });
+    }
+    if (agentPersonality && (typeof agentPersonality !== 'string' || agentPersonality.length > 2000)) {
+      return NextResponse.json({ error: 'Invalid input' }, { status: 400 });
+    }
+
     const systemPrompt = `${agentPersonality}
 
 The user is brainstorming: "${rootIdea}". You are the "${nodeLabel}" expert. Help them explore this specific aspect. Be concise (2-3 sentences max), practical, and creative. Ask follow-up questions to deepen the conversation.`;
@@ -28,6 +41,9 @@ The user is brainstorming: "${rootIdea}". You are the "${nodeLabel}" expert. Hel
 
     // Last message is the user's new message
     const lastMessage = mapped.pop();
+    if (!lastMessage) {
+      return NextResponse.json({ error: 'No messages provided' }, { status: 400 });
+    }
 
     // Skip leading model messages (Gemini requires user-first history)
     let startIdx = 0;
@@ -47,7 +63,7 @@ The user is brainstorming: "${rootIdea}". You are the "${nodeLabel}" expert. Hel
   } catch (error: any) {
     console.error('Chat error:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to generate reply' },
+      { error: 'Failed to generate reply' },
       { status: 500 }
     );
   }

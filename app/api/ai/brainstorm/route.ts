@@ -7,12 +7,12 @@ export async function POST(req: Request) {
 
     // Support both old and new interfaces
     const topic = body.topic || body.clusterLabel;
-    const count = body.count || 3;
+    const count = Math.min(Number(body.count) || 3, 10);
     const focus = body.focus || '';
 
-    if (!topic) {
+    if (!topic || typeof topic !== 'string' || topic.length > 1000) {
       return NextResponse.json(
-        { error: 'Topic is required' },
+        { error: 'A valid topic is required' },
         { status: 400 }
       );
     }
@@ -32,7 +32,7 @@ export async function POST(req: Request) {
     if (error) {
       console.error('❌ Failed to create task:', error);
       return NextResponse.json(
-        { error: 'Failed to create brainstorm task', details: error.message },
+        { error: 'Failed to create brainstorm task' },
         { status: 500 }
       );
     }
@@ -45,7 +45,7 @@ export async function POST(req: Request) {
   } catch (error: any) {
     console.error('Brainstorm error:', error);
     return NextResponse.json(
-      { error: 'Failed to brainstorm', details: error.message },
+      { error: 'Failed to brainstorm' },
       { status: 500 }
     );
   }

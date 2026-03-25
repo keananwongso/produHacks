@@ -7,6 +7,13 @@ export async function POST(req: NextRequest) {
   try {
     const { rootIdea, branches, deliverables } = await req.json();
 
+    if (!rootIdea || typeof rootIdea !== 'string' || rootIdea.length > 1000) {
+      return NextResponse.json({ error: 'Invalid input' }, { status: 400 });
+    }
+    if (!Array.isArray(branches) || !Array.isArray(deliverables) || deliverables.length > 50) {
+      return NextResponse.json({ error: 'Invalid input' }, { status: 400 });
+    }
+
     const model = genAI.getGenerativeModel({
       model: 'gemini-3-flash-preview',
       generationConfig: {

@@ -3,10 +3,13 @@ import { supabase } from '@/lib/supabase';
 
 export async function POST(req: Request) {
   try {
-    const { topic, count = 1, focus = '' } = await req.json();
+    const body = await req.json();
+    const topic = body.topic;
+    const count = Math.min(Number(body.count) || 1, 10);
+    const focus = body.focus || '';
 
-    if (!topic) {
-      return NextResponse.json({ error: 'Topic is required' }, { status: 400 });
+    if (!topic || typeof topic !== 'string' || topic.length > 1000) {
+      return NextResponse.json({ error: 'A valid topic is required' }, { status: 400 });
     }
 
     console.log('🎨 Creating mockup task:', topic);
@@ -20,7 +23,7 @@ export async function POST(req: Request) {
     if (error) {
       console.error('❌ Failed to create task:', error);
       return NextResponse.json(
-        { error: 'Failed to create mockup task', details: error.message },
+        { error: 'Failed to create mockup task' },
         { status: 500 }
       );
     }
@@ -30,7 +33,7 @@ export async function POST(req: Request) {
   } catch (error: any) {
     console.error('Mockup error:', error);
     return NextResponse.json(
-      { error: 'Failed to create mockup', details: error.message },
+      { error: 'Failed to create mockup' },
       { status: 500 }
     );
   }

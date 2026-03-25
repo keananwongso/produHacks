@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState, useRef } from 'react';
+import DOMPurify from 'dompurify';
 import ReactFlow, {
   Background,
   Controls,
@@ -93,9 +94,12 @@ function PanelNode({ data }: { data: {
 
   useEffect(() => {
     if (!isMockup && contentRef.current) {
-      contentRef.current.innerHTML = content
-        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-        .replace(/\n/g, '<br/>');
+      contentRef.current.innerHTML = DOMPurify.sanitize(
+        content
+          .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+          .replace(/\n/g, '<br/>'),
+        { ALLOWED_TAGS: ['strong', 'br'] }
+      );
     }
   }, [content, isMockup]);
 
@@ -204,7 +208,7 @@ function PanelNode({ data }: { data: {
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 14px' }}>
         {isMockup && html ? (
           <iframe
-            srcDoc={html}
+            srcDoc={DOMPurify.sanitize(html, { WHOLE_DOCUMENT: true, ADD_TAGS: ['style'], ADD_ATTR: ['onclick', 'onchange', 'oninput'] })}
             sandbox="allow-scripts"
             style={{ width: '100%', height: '100%', minHeight: contentH, border: 'none', borderRadius: 10 }}
             title={title}

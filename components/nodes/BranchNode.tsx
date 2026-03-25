@@ -3,6 +3,7 @@
 import { Handle, Position } from 'reactflow';
 import { useState, useEffect, useRef } from 'react';
 import { Plus, ArrowRight } from 'lucide-react';
+import DOMPurify from 'dompurify';
 
 interface ChatMessage {
   id: string;
@@ -37,7 +38,8 @@ function darkenColor(hex: string, factor: number = 0.35): string {
 }
 
 function formatBold(text: string) {
-  return text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  const html = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  return DOMPurify.sanitize(html, { ALLOWED_TAGS: ['strong'] });
 }
 
 export function BranchNode({ data }: { data: BranchNodeData }) {

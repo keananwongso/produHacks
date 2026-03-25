@@ -3,6 +3,7 @@
 import { Handle, Position } from 'reactflow';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { ArrowRight, Plus } from 'lucide-react';
+import DOMPurify from 'dompurify';
 
 interface ChatMessage {
   id: string;
@@ -26,7 +27,8 @@ interface CenterNodeData {
 }
 
 function formatBold(text: string) {
-  return text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  const html = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  return DOMPurify.sanitize(html, { ALLOWED_TAGS: ['strong'] });
 }
 
 function ChatHistoryCard({ chatMessages, isChatLoading }: { chatMessages: ChatMessage[]; isChatLoading: boolean }) {

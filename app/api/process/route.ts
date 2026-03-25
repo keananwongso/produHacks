@@ -6,9 +6,9 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 export async function POST(req: Request) {
   const { input, context } = await req.json();
 
-  if (!input || input.trim().length === 0) {
+  if (!input || typeof input !== 'string' || input.trim().length === 0 || input.length > 2000) {
     return NextResponse.json(
-      { error: 'Input is required' },
+      { error: 'Input is required and must be under 2000 characters' },
       { status: 400 }
     );
   }
@@ -95,7 +95,6 @@ Rules:
       },
       summary: 'Adding your thought to the canvas',
       originalInput: input,
-      error: error.message,
     });
   }
 }

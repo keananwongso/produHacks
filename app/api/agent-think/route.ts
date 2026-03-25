@@ -7,6 +7,19 @@ export async function POST(req: NextRequest) {
   try {
     const { branchLabel, branchDescription, agentPersonality, rootIdea } = await req.json();
 
+    if (!branchLabel || typeof branchLabel !== 'string' || branchLabel.length > 500) {
+      return NextResponse.json({ error: 'Invalid input' }, { status: 400 });
+    }
+    if (!rootIdea || typeof rootIdea !== 'string' || rootIdea.length > 1000) {
+      return NextResponse.json({ error: 'Invalid input' }, { status: 400 });
+    }
+    if (branchDescription && (typeof branchDescription !== 'string' || branchDescription.length > 1000)) {
+      return NextResponse.json({ error: 'Invalid input' }, { status: 400 });
+    }
+    if (agentPersonality && (typeof agentPersonality !== 'string' || agentPersonality.length > 2000)) {
+      return NextResponse.json({ error: 'Invalid input' }, { status: 400 });
+    }
+
     const model = genAI.getGenerativeModel({
       model: 'gemini-3-flash-preview',
       generationConfig: {
